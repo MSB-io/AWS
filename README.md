@@ -5,25 +5,29 @@
 The platform follows a scalable, decoupled architecture on AWS, using EC2 for compute, RDS for data, and S3 for backups.
 
 ```mermaid
-architecture-beta
-    group aws(cloud)[AWS Cloud]
-    
-    group vpc(cloud)[VPC: 10.0.0.0/16] in aws
-    group public_subnet(cloud)[Public Subnet: 10.0.1.0/24] in vpc
-    group private_subnet(cloud)[Private Subnet: 10.0.2.0/24] in vpc
-    
-    service igw(internet)[Internet Gateway] in vpc
-    
-    service ec2(server)[EC2 Instance\nFrontend + Backend API] in public_subnet
-    service rds(database)[RDS MySQL] in private_subnet
-    
-    service s3(disk)[S3 Bucket\nAutomated Backups] in aws
-    service cw(cloud)[CloudWatch\nMonitoring & Alerts] in aws
-    
-    igw:L -- R:ec2
-    ec2:B -- T:rds
-    ec2:R -- L:s3
-    ec2:T -- B:cw
+graph TD
+    subgraph AWS Cloud
+        S3[(S3 Bucket<br>Automated Backups)]
+        CW((CloudWatch<br>Monitoring & Alerts))
+        
+        subgraph VPC [VPC: 10.0.0.0/16]
+            IGW{{Internet Gateway}}
+            
+            subgraph Public Subnet: 10.0.1.0/24
+                EC2[EC2 Instance<br>Frontend + Backend API]
+            end
+            
+            subgraph Private Subnet: 10.0.2.0/24
+                RDS[(RDS MySQL)]
+            end
+            
+            IGW <--> EC2
+            EC2 <--> RDS
+        end
+        
+        EC2 --> S3
+        EC2 --> CW
+    end
 ```
 
 ### Components
