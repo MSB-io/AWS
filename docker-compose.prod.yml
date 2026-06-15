@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    container_name: fanengage-frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    container_name: fanengage-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5001
+      DB_HOST: fanengage-app-stack-mysqldatabase-2ir704ctldid.cl2ka8uaql43.ap-south-1.rds.amazonaws.com
+      DB_PORT: 3306
+      DB_NAME: fanengage_db
+      DB_USER: admin
+      DB_PASSWORD: fanengage_admin123
+      JWT_SECRET: fanengage_super_secret_jwt_2024
+      JWT_EXPIRES_IN: 7d
+      NODE_ENV: production
+    ports:
+      - "5001:5001"
