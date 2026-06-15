@@ -110,3 +110,22 @@ The developed web application directly addresses the business requirements:
 *   **Executive Analytics**: Interactive visual dashboards built using Recharts for ticket sales, revenue generation, and engagement trends.
 *   **Monitoring & Alerting**: Real-time operational dashboards enabling proactive incident response.
 *   **Operational Records**: Database-backed ledgers ensuring data integrity, auditability, and compliance for all fan events.
+
+## 7. Project Screenshots
+
+### Web Application UI
+* **Login & Auth**: ![Login](docs/screenshots/01_web_login.png)
+* **Fan Dashboard**: ![Dashboard](docs/screenshots/02_web_dashboard.png)
+* **Events Platform**: ![Events](docs/screenshots/03_web_events.png)
+* **Alerting Dashboard**: ![Alerts](docs/screenshots/04_web_alerts.png)
+* **Analytics & Reporting**: ![Analytics](docs/screenshots/05_web_analytics.png)
+* **Admin - User Management**: ![Admin Users](docs/screenshots/06_web_admin_users.png)
+* **Admin - IAM**: ![Admin IAM](docs/screenshots/07_web_admin_iam.png)
+* **Admin - Infrastructure**: ![Admin Infra](docs/screenshots/08_web_admin_infra.png)
+
+### AWS Infrastructure & DevOps
+* **EC2 Instances**: ![EC2](docs/screenshots/09_aws_ec2_instances.png)
+* **RDS Databases**: ![RDS](docs/screenshots/10_aws_rds_databases.png)
+* **VPC & Networking**: ![VPC Subnets](docs/screenshots/11_aws_vpc_subnets.png)
+* **Docker Containerization**: ![Docker PS](docs/screenshots/12_terminal_docker_ps.png)
+* **Linux Automation Scripts**: ![Terminal Scripts](docs/screenshots/13_terminal_scripts_ls.png)
