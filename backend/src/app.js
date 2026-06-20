@@ -8,6 +8,7 @@ const eventRoutes = require('./routes/events');
 const analyticsRoutes = require('./routes/analytics');
 const alertRoutes = require('./routes/alerts');
 const fanRoutes = require('./routes/fans');
+const seedDatabase = require('./models/seed');
 
 const app = express();
 
@@ -30,8 +31,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5001;
 
-sequelize.sync({ alter: true }).then(() => {
+sequelize.sync({ alter: true }).then(async () => {
   console.log('✅ Database synced');
+  await seedDatabase(require('./models'));
   app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
 }).catch(err => {
   console.error('❌ DB sync failed:', err.message);

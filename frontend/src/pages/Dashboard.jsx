@@ -1,15 +1,10 @@
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Trophy, CalendarDays, Users, Zap, TrendingUp, Star, Activity } from 'lucide-react'
-
-// Mock data displayed when not connected to backend
-const MOCK_UPCOMING = [
-  { id: 1, title: 'IPL 2025 Final', sport: 'Cricket', venue: 'Wankhede Stadium, Mumbai', event_date: '2025-05-25', status: 'upcoming', home_team: 'MI', away_team: 'CSK', tickets_sold: 32000, capacity: 35000 },
-  { id: 2, title: 'ISL Semi-Final', sport: 'Football', venue: 'Salt Lake Stadium, Kolkata', event_date: '2025-06-10', status: 'live', home_team: 'ATKMB', away_team: 'MCFC', tickets_sold: 65000, capacity: 68000 },
-  { id: 3, title: 'Pro Kabaddi League', sport: 'Kabaddi', venue: 'EKA Arena, Ahmedabad', event_date: '2025-06-20', status: 'upcoming', home_team: 'Gujarat Giants', away_team: 'Bengaluru Bulls', tickets_sold: 8000, capacity: 10000 },
-]
+import { Trophy, CalendarDays, Users, Zap, TrendingUp, Star, Activity, Loader2 } from 'lucide-react'
+import { getEvents, getAnalyticsSummary } from '@/api'
 
 const STATUS_COLORS = { upcoming: 'secondary', live: 'destructive', completed: 'default', cancelled: 'outline' }
 
@@ -34,8 +29,64 @@ function StatCard({ icon: Icon, label, value, sub, color = 'text-primary' }) {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const [events, setEvents] = useState([])
+  const [summary, setSummary] = useState({
+    totalFans: 0,
+    totalEvents: 0,
+    liveEvents: 0,
+    totalTicketsSold: 0,
+    totalRevenue: 0
+  })
+  const [loading, setLoading] = useState(true)
 
-  const liveCount = MOCK_UPCOMING.filter(e => e.status === 'live').length
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const [eventsRes, summaryRes] = await Promise.all([
+          getEvents(),
+          getAnalyticsSummary()
+        ])
+        setEvents(eventsRes.data)
+        setSummary(summaryRes.data)
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDashboard()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex h-[calc(100vh-100px)] items-center justify-center">
+        <Loader2 className="animate-spin size-8 text-primary" />
+      </div>
+    )
+  }
+
+  const liveCount = events.filter(e => e.status === 'live').length
+
+  // Helper for formatting ticket volume representation
+  const formatTickets = (count) => {
+    if (count >= 100000) {
+      return `${(count / 100000).toFixed(1)}L`
+    }
+    return count.toLocaleString('en-IN')
+  }
+
+  // Helper for formatting revenue
+  const formatRevenue = (rev) => {
+    const val = parseFloat(rev)
+    if (isNaN(val)) return '₹0'
+    if (val >= 10000000) {
+      return `₹${(val / 10000000).toFixed(2)}Cr`
+    }
+    if (val >= 100000) {
+      return `₹${(val / 100000).toFixed(2)}L`
+    }
+    return `₹${val.toLocaleString('en-IN')}`
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,10 +105,10 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={CalendarDays} label="Total Events" value="24" sub="3 this week" color="text-blue-500" />
-        <StatCard icon={Zap} label="Live Now" value={liveCount} sub="Real-time" color="text-red-500" />
-        <StatCard icon={Users} label="Registered Fans" value="12,480" sub="+320 today" color="text-green-500" />
-        <StatCard icon={TrendingUp} label="Tickets Sold" value="1.2L" sub="₹6.2Cr revenue" color="text-orange-500" />
+        <StatCard icon={CalendarDays} label="Total Events" value={summary.totalEvents} sub="Across all sports" color="text-blue-500" />
+        <StatCard icon={Zap} label="Live Now" value={summary.liveEvents} sub="Active matches" color="text-red-500" />
+        <StatCard icon={Users} label="Registered Fans" value={summary.totalFans.toLocaleString('en-IN')} sub="Active accounts" color="text-green-500" />
+        <StatCard icon={TrendingUp} label="Tickets Sold" value={formatTickets(summary.totalTicketsSold)} sub={`${formatRevenue(summary.totalRevenue)} revenue`} color="text-orange-500" />
       </div>
 
       <Separator />
@@ -69,49 +120,57 @@ export default function DashboardPage() {
           <h2 className="text-base font-semibold">Upcoming & Live Events</h2>
         </div>
         <div className="flex flex-col gap-3">
-          {MOCK_UPCOMING.map(event => (
-            <Card key={event.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <p className="font-semibold text-sm truncate">{event.title}</p>
-                      <Badge variant={STATUS_COLORS[event.status]} className="text-[10px] shrink-0">
-                        {event.status.toUpperCase()}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{event.venue}</p>
-                    {event.home_team && (
-                      <p className="text-xs font-medium mt-1 text-foreground">{event.home_team} vs {event.away_team}</p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <Badge variant="outline" className="text-xs mb-1">{event.sport}</Badge>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(event.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {event.tickets_sold.toLocaleString()} / {event.capacity.toLocaleString()} seats
-                    </p>
-                  </div>
-                </div>
-
-                {/* Occupancy bar */}
-                <div className="mt-3">
-                  <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                    <span>Occupancy</span>
-                    <span>{Math.round((event.tickets_sold / event.capacity) * 100)}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${(event.tickets_sold / event.capacity) * 100}%` }}
-                    />
-                  </div>
-                </div>
+          {events.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No events currently configured.
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            events.slice(0, 5).map(event => (
+              <Card key={event.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="py-4">
+                  <div className="flex items-start justify-between gap-4 flex-wrap md:flex-nowrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="font-semibold text-sm truncate">{event.title}</p>
+                        <Badge variant={STATUS_COLORS[event.status]} className="text-[10px] shrink-0">
+                          {event.status.toUpperCase()}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{event.venue}</p>
+                      {event.home_team && (
+                        <p className="text-xs font-medium mt-1 text-foreground">{event.home_team} vs {event.away_team}</p>
+                      )}
+                    </div>
+                    <div className="text-left md:text-right shrink-0">
+                      <Badge variant="outline" className="text-xs mb-1">{event.sport}</Badge>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(event.event_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {event.tickets_sold?.toLocaleString()} / {event.capacity?.toLocaleString()} seats
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Occupancy bar */}
+                  <div className="mt-3">
+                    <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                      <span>Occupancy</span>
+                      <span>{event.capacity ? Math.round((event.tickets_sold / event.capacity) * 100) : 0}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${event.capacity ? (event.tickets_sold / event.capacity) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
 

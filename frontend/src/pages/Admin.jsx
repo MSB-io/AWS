@@ -1,19 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ShieldCheck, Users, Server, Database, HardDrive, Trash2, UserCheck, Cloud } from 'lucide-react'
+import { ShieldCheck, Users, Server, Database, HardDrive, Trash2, UserCheck, Cloud, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-
-const INITIAL_FANS = [
-  { id: 1, name: 'Priya Sharma', email: 'priya@example.com', team_fav: 'Cricket', created_at: '2025-01-10' },
-  { id: 2, name: 'Rahul Verma', email: 'rahul@example.com', team_fav: 'Football', created_at: '2025-02-14' },
-  { id: 3, name: 'Ananya Patel', email: 'ananya@example.com', team_fav: 'Kabaddi', created_at: '2025-03-01' },
-  { id: 4, name: 'Karan Singh', email: 'karan@example.com', team_fav: 'Cricket', created_at: '2025-03-22' },
-  { id: 5, name: 'Sneha Mehta', email: 'sneha@example.com', team_fav: 'Badminton', created_at: '2025-04-08' },
-]
+import { getFans, deleteFan } from '@/api'
 
 const IAM_USERS = [
   { name: 'fanengage-ec2-role', type: 'IAM Role', permissions: ['S3:PutObject', 'CloudWatch:PutMetricData'], attached: 'EC2 Instance' },
@@ -29,11 +22,33 @@ const INFRA = [
 ]
 
 export default function AdminPage() {
-  const [fans, setFans] = useState(INITIAL_FANS)
+  const [fans, setFans] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const handleDeleteFan = (id) => {
-    setFans(prev => prev.filter(f => f.id !== id))
-    toast.success('Fan account removed')
+  async function fetchFans() {
+    try {
+      const { data } = await getFans()
+      setFans(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load registered fans')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchFans()
+  }, [])
+
+  const handleDeleteFan = async (id) => {
+    try {
+      await deleteFan(id)
+      toast.success('Fan account removed')
+      fetchFans()
+    } catch (err) {
+      toast.error('Failed to remove fan account')
+    }
   }
 
   return (
@@ -76,30 +91,47 @@ export default function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {fans.map(fan => (
-                    <TableRow key={fan.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                            {fan.name.charAt(0)}
-                          </div>
-                          <span className="text-sm font-medium">{fan.name}</span>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 className="animate-spin size-5 text-primary" />
+                          <p className="text-xs text-muted-foreground">Loading fans...</p>
                         </div>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{fan.email}</TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline" className="text-xs">{fan.team_fav}</Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                        {new Date(fan.created_at).toLocaleDateString('en-IN')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive" onClick={() => handleDeleteFan(fan.id)}>
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                    </TableRow>
+                  ) : fans.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8 text-sm">
+                        No fans registered yet
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    fans.map(fan => (
+                      <TableRow key={fan.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                              {fan.name?.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-medium">{fan.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{fan.email}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <Badge variant="outline" className="text-xs">{fan.team_fav}</Badge>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                          {new Date(fan.created_at).toLocaleDateString('en-IN')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive" onClick={() => handleDeleteFan(fan.id)}>
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

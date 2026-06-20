@@ -1,5 +1,5 @@
 const express = require('express');
-const { User, Event, EngagementRecord } = require('../models');
+const { sequelize, User, Event, EngagementRecord } = require('../models');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { fn, col, literal } = require('sequelize');
 const router = express.Router();
@@ -30,15 +30,19 @@ router.get('/summary', authMiddleware, roleMiddleware('manager', 'admin'), async
 // GET /api/analytics/engagement - monthly engagement trend
 router.get('/engagement', authMiddleware, roleMiddleware('manager', 'admin'), async (req, res) => {
   try {
+    const isSqlite = sequelize.options.dialect === 'sqlite';
+    const monthAttr = isSqlite ? fn('strftime', '%m', col('created_at')) : fn('MONTH', col('created_at'));
+    const yearAttr = isSqlite ? fn('strftime', '%Y', col('created_at')) : fn('YEAR', col('created_at'));
+
     // Return last 6 months of engagement grouped by month
     const data = await EngagementRecord.findAll({
       attributes: [
-        [fn('MONTH', col('created_at')), 'month'],
-        [fn('YEAR', col('created_at')), 'year'],
+        [monthAttr, 'month'],
+        [yearAttr, 'year'],
         [fn('COUNT', col('id')), 'count'],
       ],
-      group: [fn('MONTH', col('created_at')), fn('YEAR', col('created_at'))],
-      order: [[fn('YEAR', col('created_at')), 'ASC'], [fn('MONTH', col('created_at')), 'ASC']],
+      group: [monthAttr, yearAttr],
+      order: [[yearAttr, 'ASC'], [monthAttr, 'ASC']],
       limit: 6,
     });
     res.json(data);

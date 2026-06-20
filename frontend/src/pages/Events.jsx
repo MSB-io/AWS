@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,19 +8,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { CalendarDays, Plus, Search, Filter, Edit, Trash2 } from 'lucide-react'
+import { CalendarDays, Plus, Search, Filter, Edit, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getEvents, createEvent, updateEvent, deleteEvent } from '@/api'
 
 const SPORTS = ['Cricket', 'Football', 'Basketball', 'Tennis', 'Hockey', 'Kabaddi', 'Badminton']
 const STATUS_COLORS = { upcoming: 'secondary', live: 'destructive', completed: 'default', cancelled: 'outline' }
-
-const INITIAL_EVENTS = [
-  { id: 1, title: 'IPL 2025 Final', sport: 'Cricket', venue: 'Wankhede Stadium, Mumbai', event_date: '2025-05-25T19:00', status: 'live', home_team: 'MI', away_team: 'CSK', tickets_sold: 32000, capacity: 35000, ticket_price: 2500 },
-  { id: 2, title: 'ISL Semi-Final', sport: 'Football', venue: 'Salt Lake Stadium, Kolkata', event_date: '2025-06-10T17:30', status: 'upcoming', home_team: 'ATKMB', away_team: 'MCFC', tickets_sold: 65000, capacity: 68000, ticket_price: 800 },
-  { id: 3, title: 'Pro Kabaddi League Final', sport: 'Kabaddi', venue: 'EKA Arena, Ahmedabad', event_date: '2025-06-20T20:00', status: 'upcoming', home_team: 'Gujarat Giants', away_team: 'Bengaluru Bulls', tickets_sold: 8000, capacity: 10000, ticket_price: 499 },
-  { id: 4, title: 'Badminton National Championship', sport: 'Badminton', venue: 'Siri Fort Sports Complex, Delhi', event_date: '2025-04-15T10:00', status: 'completed', home_team: '', away_team: '', tickets_sold: 3000, capacity: 3200, ticket_price: 250 },
-  { id: 5, title: 'Pro Basketball League', sport: 'Basketball', venue: 'NSCI Dome, Mumbai', event_date: '2025-07-05T18:00', status: 'upcoming', home_team: 'Mumbai Heroes', away_team: 'Delhi Dunkers', tickets_sold: 2400, capacity: 4000, ticket_price: 350 },
-]
 
 const EMPTY_FORM = { title: '', sport: '', venue: '', event_date: '', status: 'upcoming', home_team: '', away_team: '', capacity: 50000, tickets_sold: 0, ticket_price: 499 }
 
@@ -29,13 +22,30 @@ export default function EventsPage() {
   const isManager = ['manager', 'admin'].includes(user?.role)
   const isAdmin = user?.role === 'admin'
 
-  const [events, setEvents] = useState(INITIAL_EVENTS)
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterSport, setFilterSport] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [showDialog, setShowDialog] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+
+  async function fetchEvents() {
+    try {
+      const { data } = await getEvents()
+      setEvents(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load events from server')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchEvents()
+  }, [])
 
   const filtered = events.filter(e => {
     const matchSearch = !search || e.title.toLowerCase().includes(search.toLowerCase())
@@ -45,25 +55,47 @@ export default function EventsPage() {
   })
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setShowDialog(true) }
-  const openEdit = (ev) => { setEditing(ev); setForm({ ...ev }); setShowDialog(true) }
+  const openEdit = (ev) => {
+    // Format the date for the datetime-local input (YYYY-MM-DDTHH:MM)
+    let formattedDate = ''
+    if (ev.event_date) {
+      const d = new Date(ev.event_date)
+      // Account for timezone offset to get local YYYY-MM-DDTHH:MM
+      const pad = (n) => String(n).padStart(2, '0')
+      formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    setEditing(ev)
+    setForm({ ...ev, event_date: formattedDate })
+    setShowDialog(true)
+  }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.title || !form.sport || !form.venue || !form.event_date) {
       toast.error('Please fill all required fields'); return
     }
-    if (editing) {
-      setEvents(evs => evs.map(e => e.id === editing.id ? { ...e, ...form } : e))
-      toast.success('Event updated')
-    } else {
-      setEvents(evs => [...evs, { ...form, id: Date.now() }])
-      toast.success('Event created')
+    try {
+      if (editing) {
+        await updateEvent(editing.id, form)
+        toast.success('Event updated')
+      } else {
+        await createEvent(form)
+        toast.success('Event created')
+      }
+      setShowDialog(false)
+      fetchEvents()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save event')
     }
-    setShowDialog(false)
   }
 
-  const handleDelete = (id) => {
-    setEvents(evs => evs.filter(e => e.id !== id))
-    toast.success('Event deleted')
+  const handleDelete = async (id) => {
+    try {
+      await deleteEvent(id)
+      toast.success('Event deleted')
+      fetchEvents()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete event')
+    }
   }
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target?.value ?? e }))
@@ -138,59 +170,69 @@ export default function EventsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(event => (
-                <TableRow key={event.id}>
-                  <TableCell>
-                    <p className="font-medium text-sm">{event.title}</p>
-                    {event.home_team && (
-                      <p className="text-xs text-muted-foreground">{event.home_team} vs {event.away_team}</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge variant="outline" className="text-xs">{event.sport}</Badge>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-40 truncate">
-                    {event.venue}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                    {new Date(event.event_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_COLORS[event.status]} className="text-xs">
-                      {event.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-xs">
-                    <div>
-                      <span className="font-medium">{event.tickets_sold?.toLocaleString()}</span>
-                      <span className="text-muted-foreground"> / {event.capacity?.toLocaleString()}</span>
-                    </div>
-                    <div className="h-1 w-20 rounded-full bg-muted mt-1 overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (event.tickets_sold / event.capacity) * 100)}%` }} />
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="animate-spin size-6 text-primary" />
+                      <p className="text-xs text-muted-foreground">Loading events...</p>
                     </div>
                   </TableCell>
-                  {isManager && (
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(event)}>
-                          <Edit className="size-3.5" />
-                        </Button>
-                        {isAdmin && (
-                          <Button variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive" onClick={() => handleDelete(event.id)}>
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
                 </TableRow>
-              ))}
-              {filtered.length === 0 && (
+              ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-sm">
                     No events found matching your filters
                   </TableCell>
                 </TableRow>
+              ) : (
+                filtered.map(event => (
+                  <TableRow key={event.id}>
+                    <TableCell>
+                      <p className="font-medium text-sm">{event.title}</p>
+                      {event.home_team && (
+                        <p className="text-xs text-muted-foreground">{event.home_team} vs {event.away_team}</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge variant="outline" className="text-xs">{event.sport}</Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-40 truncate">
+                      {event.venue}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                      {new Date(event.event_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_COLORS[event.status]} className="text-xs">
+                        {event.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-xs">
+                      <div>
+                        <span className="font-medium">{event.tickets_sold?.toLocaleString()}</span>
+                        <span className="text-muted-foreground"> / {event.capacity?.toLocaleString()}</span>
+                      </div>
+                      <div className="h-1 w-20 rounded-full bg-muted mt-1 overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (event.tickets_sold / event.capacity) * 100)}%` }} />
+                      </div>
+                    </TableCell>
+                    {isManager && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(event)}>
+                            <Edit className="size-3.5" />
+                          </Button>
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive" onClick={() => handleDelete(event.id)}>
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>

@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Bell, CheckCircle, AlertTriangle, AlertCircle, Info, ShieldAlert } from 'lucide-react'
+import { Bell, CheckCircle, AlertTriangle, AlertCircle, Info, ShieldAlert, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { getAlerts, resolveAlert } from '@/api'
 
 const SEVERITY_CONFIG = {
   critical: { variant: 'destructive', icon: ShieldAlert, label: 'Critical', color: 'text-red-500' },
@@ -15,18 +16,10 @@ const SEVERITY_CONFIG = {
   low: { variant: 'secondary', icon: Info, label: 'Low', color: 'text-blue-500' },
 }
 
-const INITIAL_ALERTS = [
-  { id: 1, type: 'performance', message: 'EC2 CPU utilization exceeded 85% threshold for 5 minutes. Consider scaling.', severity: 'high', resolved: false, source: 'CloudWatch', created_at: new Date(Date.now() - 12 * 60000).toISOString() },
-  { id: 2, type: 'security', message: 'Unusual login attempt detected from IP 203.45.67.89. Login blocked by IAM policy.', severity: 'critical', resolved: false, source: 'AWS IAM', created_at: new Date(Date.now() - 35 * 60000).toISOString() },
-  { id: 3, type: 'event', message: 'IPL Final tickets are 91% sold. Only 3,000 tickets remaining.', severity: 'medium', resolved: false, source: 'FanEngage Platform', created_at: new Date(Date.now() - 2 * 3600000).toISOString() },
-  { id: 4, type: 'system', message: 'RDS automated backup completed successfully. Snapshot stored in S3.', severity: 'low', resolved: true, source: 'AWS RDS', created_at: new Date(Date.now() - 6 * 3600000).toISOString() },
-  { id: 5, type: 'performance', message: 'Memory usage on EC2 reached 72%. Monitor for potential issues.', severity: 'medium', resolved: false, source: 'CloudWatch', created_at: new Date(Date.now() - 8 * 3600000).toISOString() },
-  { id: 6, type: 'system', message: 'S3 backup script executed. Daily database backup uploaded successfully.', severity: 'low', resolved: true, source: 'Cron Job', created_at: new Date(Date.now() - 24 * 3600000).toISOString() },
-]
-
 function timeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
+  if (m < 1) return `just now`
   if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
@@ -36,8 +29,35 @@ function timeAgo(iso) {
 export default function AlertsPage() {
   const { user } = useAuth()
   const isManager = ['manager', 'admin'].includes(user?.role)
-  const [alerts, setAlerts] = useState(INITIAL_ALERTS)
+  const [alerts, setAlerts] = useState([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // all | unresolved | resolved
+
+  async function fetchAlerts() {
+    try {
+      const { data } = await getAlerts()
+      setAlerts(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to retrieve alerts')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAlerts()
+  }, [])
+
+  const handleResolve = async (id) => {
+    try {
+      await resolveAlert(id)
+      toast.success('Alert marked as resolved')
+      fetchAlerts()
+    } catch (err) {
+      toast.error('Failed to resolve alert')
+    }
+  }
 
   const displayed = alerts.filter(a => {
     if (filter === 'unresolved') return !a.resolved
@@ -45,12 +65,15 @@ export default function AlertsPage() {
     return true
   })
 
-  const handleResolve = (id) => {
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, resolved: true } : a))
-    toast.success('Alert marked as resolved')
-  }
-
   const unresolved = alerts.filter(a => !a.resolved).length
+
+  if (loading) {
+    return (
+      <div className="flex h-[calc(100vh-100px)] items-center justify-center">
+        <Loader2 className="animate-spin size-8 text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
