@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 5001
-      DB_HOST: fanengage-app-stack-mysqldatabase-2ir704ctldid.cl2ka8uaql43.ap-south-1.rds.amazonaws.com
+      DB_HOST: fanengage-app-stack-mysqldatabase-3u08uzphlie6.cl2ka8uaql43.ap-south-1.rds.amazonaws.com
       DB_PORT: 3306
       DB_NAME: fanengage_db
       DB_USER: admin
